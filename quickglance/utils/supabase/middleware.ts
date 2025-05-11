@@ -2,9 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function updateSession(request: NextRequest) {
-  // Create a Next.js response to possibly modify
   let response = NextResponse.next({ request });
-  // Create Supabase client with the incoming request's cookies
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -14,11 +13,9 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // First, mirror cookies in the request context (for server)
           cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value);
           });
-          // Then, prepare response to set updated cookies (client)
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
@@ -28,21 +25,25 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Attempt to get the logged-in user
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // If no user and trying to access protected routes, redirect to /login
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/auth')
-  ) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = '/auth';
-    return NextResponse.redirect(loginUrl);
+  // If no user and trying to access dashboard, redirect to home (/)
+  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = '/';
+    return NextResponse.redirect(homeUrl);
   }
-  // Otherwise, return the (possibly updated) response
+
+  // If user is authenticated and trying to access auth, redirect to dashboard (/dashboard)
+  if (user && request.nextUrl.pathname.startsWith('/auth')) {
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = '/dashboard';
+    return NextResponse.redirect(dashboardUrl);
+  }
+
+  // Allow access to dashboard for authenticated users
+  // and continue with other routes
   return response;
 }
