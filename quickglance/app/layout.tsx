@@ -1,7 +1,6 @@
+// app/layout.tsx
 import type { Metadata } from 'next';
-import { CssBaseline } from '@mui/material';
-import { ThemeProvider } from '@mui/material/styles';
-import theme from '@/app/styles/theme';
+import ThemeProviderWrapper from '@/components/ThemeProviderWrapper';
 
 export const metadata: Metadata = {
   title: 'QuickGlance',
@@ -16,10 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          {children}
-        </ThemeProvider>
+        <ThemeProviderWrapper>{children}</ThemeProviderWrapper>
       </body>
     </html>
   );
