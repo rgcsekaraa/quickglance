@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
@@ -23,7 +23,10 @@ import {
   FormatAlignCenter,
   FormatAlignRight,
 } from '@mui/icons-material';
-import { marked } from 'marked';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TextAlign from '@tiptap/extension-text-align';
+import Underline from '@tiptap/extension-underline';
 
 interface RichTextEditorProps {
   value: string;
@@ -39,25 +42,29 @@ export default function RichTextEditor({
   helperText,
 }: RichTextEditorProps) {
   const [formats, setFormats] = useState<string[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Helper to wrap selected text with Markdown syntax
-  const wrapSelectedText = (prefix: string, suffix: string = prefix) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = value.slice(start, end);
-    const newText =
-      value.slice(0, start) + prefix + selectedText + suffix + value.slice(end);
-
-    onChange(newText);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
-    }, 0);
-  };
+  // Initialize Tiptap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        bulletList: { keepMarks: true, keepAttributes: false },
+        orderedList: { keepMarks: true, keepAttributes: false },
+        codeBlock: { HTMLAttributes: { class: 'tiptap-code-block' } },
+        blockquote: { HTMLAttributes: { class: 'tiptap-blockquote' } },
+      }),
+      Underline,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+        alignments: ['left', 'center', 'right'],
+      }),
+    ],
+    content: value || '<p></p>',
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      onChange(html);
+    },
+    immediatelyRender: false,
+  });
 
   // Handle toolbar button clicks
   const handleFormatChange = (
@@ -65,46 +72,53 @@ export default function RichTextEditor({
     newFormats: string[]
   ) => {
     setFormats(newFormats);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-      if (newFormats.includes('bold')) {
-        wrapSelectedText('**');
-      }
-      if (newFormats.includes('italic')) {
-        wrapSelectedText('*');
-      }
-      if (newFormats.includes('underlined')) {
-        wrapSelectedText('<u>', '</u>');
-      }
-      if (newFormats.includes('bullet')) {
-        wrapSelectedText('- ');
-      }
-      if (newFormats.includes('numbered')) {
-        wrapSelectedText('1. ');
-      }
-      if (newFormats.includes('left')) {
-        wrapSelectedText('<div style="text-align: left;">', '</div>');
-      }
-      if (newFormats.includes('center')) {
-        wrapSelectedText('<div style="text-align: center;">', '</div>');
-      }
-      if (newFormats.includes('right')) {
-        wrapSelectedText('<div style="text-align: right;">', '</div>');
-      }
+    if (editor) {
+      editor.chain().focus();
+      newFormats.forEach((format) => {
+        if (format === 'bold') {
+          editor.chain().focus().toggleBold().run();
+        } else if (format === 'italic') {
+          editor.chain().focus().toggleItalic().run();
+        } else if (format === 'underlined') {
+          editor.chain().focus().toggleUnderline().run();
+        } else if (format === 'bullet') {
+          editor.chain().focus().toggleBulletList().run();
+        } else if (format === 'numbered') {
+          editor.chain().focus().toggleOrderedList().run();
+        } else if (format === 'left') {
+          editor.chain().focus().setTextAlign('left').run();
+        } else if (format === 'center') {
+          editor.chain().focus().setTextAlign('center').run();
+        } else if (format === 'right') {
+          editor.chain().focus().setTextAlign('right').run();
+        }
+      });
     }
   };
 
   // Handle code and quote buttons
   const applyCodeFormat = () => {
-    wrapSelectedText('```\n', '\n```');
+    if (editor) {
+      editor.chain().focus().toggleCodeBlock().run();
+    }
   };
 
   const applyQuoteFormat = () => {
-    wrapSelectedText('> ');
+    if (editor) {
+      editor.chain().focus().toggleBlockquote().run();
+    }
   };
 
-  // Convert Markdown to HTML for preview
-  const htmlPreview = marked(value || '', { breaks: true });
+  // Update editor content when value prop changes
+  React.useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || '<p></p>');
+    }
+  }, [value, editor]);
+
+  if (!editor) {
+    return null; // Prevent rendering until editor is ready
+  }
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -182,42 +196,20 @@ export default function RichTextEditor({
           </IconButton>
         </Toolbar>
 
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: 'calc(100% - 48px)',
+        <EditorContent
+          editor={editor}
+          style={{
+            width: '100%',
+            minHeight: '150px',
+            padding: '16px',
+            border: 'none',
+            outline: 'none',
+            resize: 'vertical',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            backgroundColor: 'transparent',
           }}
-        >
-          <Box
-            component="textarea"
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            sx={{
-              width: '100%',
-              minHeight: '100px',
-              p: 2,
-              border: 'none',
-              outline: 'none',
-              resize: 'vertical',
-              fontFamily: 'inherit',
-              fontSize: 'inherit',
-              backgroundColor: 'transparent',
-            }}
-            placeholder="Enter your answer here (use Markdown, e.g., **bold**, *italic*)..."
-          />
-          <Box
-            sx={{
-              p: 2,
-              borderTop: '1px solid',
-              borderColor: 'divider',
-              backgroundColor: 'grey.50',
-              overflowY: 'auto',
-            }}
-            dangerouslySetInnerHTML={{ __html: htmlPreview }}
-          />
-        </Box>
+        />
       </Paper>
       {error && helperText && (
         <FormHelperText error>{helperText}</FormHelperText>
