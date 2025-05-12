@@ -11,10 +11,7 @@ const signinWith = (provider: Provider) => {
 
     // Make sure to use the full URL for your callback
     // In production, this should be your actual domain
-    const auth_callback_url =
-      process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000/auth/callback'
-        : `${process.env.SITE_URL}/auth/callback`;
+    const auth_callback_url = `${process.env.SITE_URL}/auth/callback`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
