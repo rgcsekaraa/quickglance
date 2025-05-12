@@ -6,6 +6,7 @@ import {
   Button,
   Box,
   Grid,
+  GridProps,
   Paper,
   useMediaQuery,
 } from '@mui/material';
@@ -217,7 +218,13 @@ export default function Home() {
               }}
             >
               {features.map((feature, index) => (
-                <Grid item xs={12} key={index}>
+                <Grid
+                  item
+                  xs={12}
+                  key={index}
+                  component="div"
+                  {...({ item: true } as GridProps)} // Explicitly cast to GridProps
+                >
                   <Paper
                     elevation={6}
                     sx={{
