@@ -23,6 +23,7 @@ import {
   FormatAlignCenter,
   FormatAlignRight,
 } from '@mui/icons-material';
+import { marked } from 'marked';
 
 interface RichTextEditorProps {
   value: string;
@@ -38,76 +39,72 @@ export default function RichTextEditor({
   helperText,
 }: RichTextEditorProps) {
   const [formats, setFormats] = useState<string[]>([]);
-  const editorRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Handle toolbar button clicks to apply formatting
+  // Helper to wrap selected text with Markdown syntax
+  const wrapSelectedText = (prefix: string, suffix: string = prefix) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = value.slice(start, end);
+    const newText =
+      value.slice(0, start) + prefix + selectedText + suffix + value.slice(end);
+
+    onChange(newText);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+    }, 0);
+  };
+
+  // Handle toolbar button clicks
   const handleFormatChange = (
     event: React.MouseEvent<HTMLElement>,
     newFormats: string[]
   ) => {
     setFormats(newFormats);
-    if (editorRef.current) {
-      editorRef.current.focus();
-      // Apply each format based on whether it's in newFormats
+    if (textareaRef.current) {
+      textareaRef.current.focus();
       if (newFormats.includes('bold')) {
-        document.execCommand('bold', false, undefined);
+        wrapSelectedText('**');
       }
       if (newFormats.includes('italic')) {
-        document.execCommand('italic', false, undefined);
+        wrapSelectedText('*');
       }
       if (newFormats.includes('underlined')) {
-        document.execCommand('underline', false, undefined);
+        wrapSelectedText('<u>', '</u>');
       }
       if (newFormats.includes('bullet')) {
-        document.execCommand('insertUnorderedList', false, undefined);
+        wrapSelectedText('- ');
       }
       if (newFormats.includes('numbered')) {
-        document.execCommand('insertOrderedList', false, undefined);
+        wrapSelectedText('1. ');
       }
       if (newFormats.includes('left')) {
-        document.execCommand('justifyLeft', false, undefined);
+        wrapSelectedText('<div style="text-align: left;">', '</div>');
       }
       if (newFormats.includes('center')) {
-        document.execCommand('justifyCenter', false, undefined);
+        wrapSelectedText('<div style="text-align: center;">', '</div>');
       }
       if (newFormats.includes('right')) {
-        document.execCommand('justifyRight', false, undefined);
+        wrapSelectedText('<div style="text-align: right;">', '</div>');
       }
     }
-    // Trigger onChange to update the parent component
-    handleContentChange();
   };
 
   // Handle code and quote buttons
   const applyCodeFormat = () => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      document.execCommand('formatBlock', false, 'pre');
-      handleContentChange();
-    }
+    wrapSelectedText('```\n', '\n```');
   };
 
   const applyQuoteFormat = () => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      document.execCommand('formatBlock', false, 'blockquote');
-      handleContentChange();
-    }
+    wrapSelectedText('> ');
   };
 
-  // Update parent component with the editor's HTML content
-  const handleContentChange = () => {
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML);
-    }
-  };
-
-  // Initialize editor content when value prop changes
-  React.useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value;
-    }
-  }, [value]);
+  // Convert Markdown to HTML for preview
+  const htmlPreview = marked(value || '', { breaks: true });
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -186,26 +183,41 @@ export default function RichTextEditor({
         </Toolbar>
 
         <Box
-          ref={editorRef}
-          contentEditable
-          onInput={handleContentChange}
           sx={{
-            width: '100%',
-            minHeight: '150px',
-            p: 2,
-            border: 'none',
-            outline: 'none',
-            resize: 'vertical',
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-            backgroundColor: 'transparent',
-            '&:empty:before': {
-              content: '"Enter your answer here..."',
-              color: 'grey.500',
-            },
+            display: 'flex',
+            flexDirection: 'column',
+            height: 'calc(100% - 48px)',
           }}
-          dangerouslySetInnerHTML={{ __html: value }}
-        />
+        >
+          <Box
+            component="textarea"
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            sx={{
+              width: '100%',
+              minHeight: '100px',
+              p: 2,
+              border: 'none',
+              outline: 'none',
+              resize: 'vertical',
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              backgroundColor: 'transparent',
+            }}
+            placeholder="Enter your answer here (use Markdown, e.g., **bold**, *italic*)..."
+          />
+          <Box
+            sx={{
+              p: 2,
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              backgroundColor: 'grey.50',
+              overflowY: 'auto',
+            }}
+            dangerouslySetInnerHTML={{ __html: htmlPreview }}
+          />
+        </Box>
       </Paper>
       {error && helperText && (
         <FormHelperText error>{helperText}</FormHelperText>
