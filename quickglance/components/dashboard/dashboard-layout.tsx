@@ -84,7 +84,9 @@ export default function DashboardLayout({
         user.user_metadata?.given_name ||
         user.email?.split('@')[0] ||
         'User';
-      setUserName(fullName.split(' ')[0]); // Use first name for display
+      setUserName(
+        fullName.charAt(0).toUpperCase() + fullName.slice(1).split(' ')[0]
+      );
       setAvatarInitial(fullName.charAt(0).toUpperCase());
     };
 

@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import {
   Box,
@@ -14,17 +15,191 @@ import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import QuestionAccordion from '@/components/dashboard/question-accordion';
 import CreateModal from '@/components/dashboard/create-modal';
-import { questionsData as initialQuestionsData } from '@/lib/dummy-data';
-import { categoriesData as initialCategoriesData } from '@/lib/dummy-data';
-import type { Question } from '@/lib/dummy-data';
-import type { Category } from '@/components/dashboard/category-tree';
+import { createClient } from '@/utils/supabase/client'; // Updated import
+import { v4 as uuidv4 } from 'uuid';
+import type { Question } from '@/lib/types';
+import type { Category } from '@/lib/types';
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [questionsData, setQuestionsData] = useState(initialQuestionsData);
-  const [categoriesData, setCategoriesData] = useState(initialCategoriesData);
-  const [filteredQuestions, setFilteredQuestions] = useState(questionsData);
+  const [questionsData, setQuestionsData] = useState<Question[]>([]);
+  const [categoriesData, setCategoriesData] = useState<Category[]>([]);
+  const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const supabase = createClient();
+
+  // Fetch user ID and initial data, set up real-time subscriptions
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get authenticated user
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          console.error(
+            'Error fetching user:',
+            userError?.message || 'No user found'
+          );
+          window.location.href = '/';
+          return;
+        }
+
+        setUserId(user.id);
+
+        // Fetch questions for the user
+        const { data: questions, error: questionsError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (questionsError) {
+          console.error('Error fetching questions:', questionsError.message);
+          return;
+        }
+
+        setQuestionsData(questions || []);
+        setFilteredQuestions(questions || []);
+
+        // Fetch categories for the user
+        const { data: categories, error: categoriesError } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (categoriesError) {
+          console.error('Error fetching categories:', categoriesError.message);
+          return;
+        }
+
+        // Build category tree for hierarchical display
+        const buildCategoryTree = (categories: any[]): Category[] => {
+          const categoryMap: { [key: string]: Category } = {};
+          const tree: Category[] = [];
+
+          categories.forEach((cat) => {
+            categoryMap[cat.id] = { ...cat, subcategories: [] };
+          });
+
+          categories.forEach((cat) => {
+            if (cat.parent_id) {
+              categoryMap[cat.parent_id]?.subcategories?.push(
+                categoryMap[cat.id]
+              );
+            } else {
+              tree.push(categoryMap[cat.id]);
+            }
+          });
+
+          return tree;
+        };
+
+        setCategoriesData(buildCategoryTree(categories || []));
+      } catch (err) {
+        console.error('Unexpected error fetching data:', err);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Set up real-time subscriptions for questions and categories
+  useEffect(() => {
+    if (!userId) return;
+
+    const questionSubscription = supabase
+      .channel('questions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'questions',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setQuestionsData((prev) => [...prev, payload.new as Question]);
+            setFilteredQuestions((prev) => [...prev, payload.new as Question]);
+          } else if (payload.eventType === 'UPDATE') {
+            setQuestionsData((prev) =>
+              prev.map((q) =>
+                q.id === payload.new.id ? (payload.new as Question) : q
+              )
+            );
+            setFilteredQuestions((prev) =>
+              prev.map((q) =>
+                q.id === payload.new.id ? (payload.new as Question) : q
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setQuestionsData((prev) =>
+              prev.filter((q) => q.id !== payload.old.id)
+            );
+            setFilteredQuestions((prev) =>
+              prev.filter((q) => q.id !== payload.old.id)
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    const categorySubscription = supabase
+      .channel('categories')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'categories',
+          filter: `user_id=eq.${userId}`,
+        },
+        async () => {
+          const { data: categories, error } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('user_id', userId);
+
+          if (error) {
+            console.error('Error fetching categories:', error.message);
+            return;
+          }
+
+          const buildCategoryTree = (categories: any[]): Category[] => {
+            const categoryMap: { [key: string]: Category } = {};
+            const tree: Category[] = [];
+
+            categories.forEach((cat) => {
+              categoryMap[cat.id] = { ...cat, subcategories: [] };
+            });
+
+            categories.forEach((cat) => {
+              if (cat.parent_id) {
+                categoryMap[cat.parent_id]?.subcategories?.push(
+                  categoryMap[cat.id]
+                );
+              } else {
+                tree.push(categoryMap[cat.id]);
+              }
+            });
+
+            return tree;
+          };
+
+          setCategoriesData(buildCategoryTree(categories || []));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      questionSubscription.unsubscribe();
+      categorySubscription.unsubscribe();
+    };
+  }, [userId]);
 
   // Filter questions based on search query
   useEffect(() => {
@@ -36,7 +211,7 @@ export default function Dashboard() {
         (question) =>
           question.question.toLowerCase().includes(lowercaseQuery) ||
           question.answer.toLowerCase().includes(lowercaseQuery) ||
-          question.categoryPath
+          question.category_path
             .join(' > ')
             .toLowerCase()
             .includes(lowercaseQuery)
@@ -45,6 +220,7 @@ export default function Dashboard() {
     }
   }, [searchQuery, questionsData]);
 
+  // Open/close create modal
   const handleCreateModalOpen = () => {
     setIsCreateModalOpen(true);
   };
@@ -53,7 +229,8 @@ export default function Dashboard() {
     setIsCreateModalOpen(false);
   };
 
-  const handleCreateContent = (newData: {
+  // Handle creating questions or categories
+  const handleCreateContent = async (newData: {
     type: 'category' | 'question';
     categoryPath?: string[];
     question?: string;
@@ -61,146 +238,315 @@ export default function Dashboard() {
     categoryName?: string;
     parentCategoryId?: string;
   }) => {
-    if (
-      newData.type === 'question' &&
-      newData.categoryPath &&
-      newData.question &&
-      newData.answer
-    ) {
-      // Add new question
-      const newQuestion: Question = {
-        id: `q${questionsData.length + 1}`,
-        question: newData.question,
-        answer: newData.answer,
-        categoryPath: newData.categoryPath,
-      };
-      setQuestionsData([...questionsData, newQuestion]);
-    } else if (newData.type === 'category' && newData.categoryName) {
-      // Add new category or subcategory
-      const newCategory = {
-        id: `cat-${Date.now()}`,
-        name: newData.categoryName,
-        subcategories: [],
-      };
+    if (!userId) {
+      console.error('No user ID available');
+      return;
+    }
 
-      if (newData.parentCategoryId) {
-        // Add as subcategory
-        const updatedCategories = addSubcategory(
-          categoriesData,
-          newData.parentCategoryId,
-          newCategory
-        );
-        setCategoriesData(updatedCategories);
-      } else {
-        // Add as top-level category
-        setCategoriesData([...categoriesData, newCategory]);
+    try {
+      if (
+        newData.type === 'question' &&
+        newData.categoryPath &&
+        newData.question &&
+        newData.answer
+      ) {
+        const newQuestion: Question = {
+          id: uuidv4(), // Use UUID
+          question: newData.question,
+          answer: newData.answer,
+          category_path: newData.categoryPath,
+          user_id: userId,
+        };
+
+        const { error } = await supabase
+          .from('questions')
+          .insert([newQuestion]);
+
+        if (error) {
+          console.error('Error inserting question:', error.message);
+          return;
+        }
+
+        setQuestionsData([...questionsData, newQuestion]);
+        setFilteredQuestions([...filteredQuestions, newQuestion]);
+      } else if (newData.type === 'category' && newData.categoryName) {
+        const newCategory = {
+          id: uuidv4(), // Use UUID
+          name: newData.categoryName,
+          parent_id: newData.parentCategoryId || null,
+          user_id: userId,
+        };
+
+        const { error } = await supabase
+          .from('categories')
+          .insert([newCategory]);
+
+        if (error) {
+          console.error('Error inserting category:', error.message);
+          return;
+        }
+
+        // Refresh categories
+        const { data: categories, error: categoriesError } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('user_id', userId);
+
+        if (categoriesError) {
+          console.error('Error fetching categories:', categoriesError.message);
+          return;
+        }
+
+        const buildCategoryTree = (categories: any[]): Category[] => {
+          const categoryMap: { [key: string]: Category } = {};
+          const tree: Category[] = [];
+
+          categories.forEach((cat) => {
+            categoryMap[cat.id] = { ...cat, subcategories: [] };
+          });
+
+          categories.forEach((cat) => {
+            if (cat.parent_id) {
+              categoryMap[cat.parent_id]?.subcategories?.push(
+                categoryMap[cat.id]
+              );
+            } else {
+              tree.push(categoryMap[cat.id]);
+            }
+          });
+
+          return tree;
+        };
+
+        setCategoriesData(buildCategoryTree(categories));
       }
+    } catch (err) {
+      console.error('Unexpected error during create:', err);
     }
   };
 
-  // Helper function to add subcategory
-  const addSubcategory = (
-    categories: Category[],
-    parentId: string,
-    newCategory: Category
-  ): Category[] => {
-    return categories.map((category) => {
-      if (category.id === parentId) {
-        return {
-          ...category,
-          subcategories: [...(category.subcategories || []), newCategory],
-        };
+  // Handle editing a category
+  const handleEditCategory = async (id: string, newName: string) => {
+    if (!userId) return;
+
+    try {
+      // Update category name
+      const { error } = await supabase
+        .from('categories')
+        .update({ name: newName })
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error updating category:', error.message);
+        return;
       }
 
-      if (category.subcategories && category.subcategories.length > 0) {
-        return {
-          ...category,
-          subcategories: addSubcategory(
-            category.subcategories,
-            parentId,
-            newCategory
-          ),
-        };
+      // Update category_path in questions
+      const { data: questions, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (questionsError) {
+        console.error('Error fetching questions:', questionsError.message);
+        return;
       }
 
-      return category;
-    });
+      const updatedQuestions = questions.map((question) => {
+        const oldCategoryName = categoriesData.find(
+          (cat) => cat.id === id
+        )?.name;
+        const updatedPath = question.category_path.map((path: string) =>
+          path === oldCategoryName ? newName : path
+        );
+        return { ...question, category_path: updatedPath };
+      });
+
+      // Update questions in Supabase
+      await Promise.all(
+        updatedQuestions.map((question) =>
+          supabase
+            .from('questions')
+            .update({ category_path: question.category_path })
+            .eq('id', question.id)
+            .eq('user_id', userId)
+        )
+      );
+
+      // Refresh categories
+      const { data: categories, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError.message);
+        return;
+      }
+
+      const buildCategoryTree = (categories: any[]): Category[] => {
+        const categoryMap: { [key: string]: Category } = {};
+        const tree: Category[] = [];
+
+        categories.forEach((cat) => {
+          categoryMap[cat.id] = { ...cat, subcategories: [] };
+        });
+
+        categories.forEach((cat) => {
+          if (cat.parent_id) {
+            categoryMap[cat.parent_id]?.subcategories?.push(
+              categoryMap[cat.id]
+            );
+          } else {
+            tree.push(categoryMap[cat.id]);
+          }
+        });
+
+        return tree;
+      };
+
+      setCategoriesData(buildCategoryTree(categories));
+      setQuestionsData(updatedQuestions);
+      setFilteredQuestions(updatedQuestions);
+    } catch (err) {
+      console.error('Unexpected error during category edit:', err);
+    }
   };
 
-  // Handle edit category
-  const handleEditCategory = (id: string, newName: string) => {
-    const updateCategoryName = (categories: Category[]): Category[] => {
-      return categories.map((category) => {
-        if (category.id === id) {
-          return { ...category, name: newName };
-        }
+  // Handle deleting a category
+  const handleDeleteCategory = async (id: string) => {
+    if (!userId) return;
 
-        if (category.subcategories && category.subcategories.length > 0) {
-          return {
-            ...category,
-            subcategories: updateCategoryName(category.subcategories),
-          };
-        }
+    try {
+      // Delete category (subcategories are deleted via on delete cascade)
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
 
-        return category;
-      });
-    };
+      if (error) {
+        console.error('Error deleting category:', error.message);
+        return;
+      }
 
-    setCategoriesData(updateCategoryName(categoriesData));
+      // Delete associated questions
+      const categoryName = categoriesData.find((cat) => cat.id === id)?.name;
+      if (categoryName) {
+        await supabase
+          .from('questions')
+          .delete()
+          .eq('user_id', userId)
+          .contains('category_path', [categoryName]);
+      }
 
-    // Update category path in questions
-    setQuestionsData((prevQuestions) => {
-      return prevQuestions.map((question) => {
-        // This is a simplified approach - in a real app, you'd need more robust path handling
-        return question;
-      });
-    });
+      // Refresh categories
+      const { data: categories, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError.message);
+        return;
+      }
+
+      // Refresh questions
+      const { data: questions, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (questionsError) {
+        console.error('Error fetching questions:', questionsError.message);
+        return;
+      }
+
+      const buildCategoryTree = (categories: any[]): Category[] => {
+        const categoryMap: { [key: string]: Category } = {};
+        const tree: Category[] = [];
+
+        categories.forEach((cat) => {
+          categoryMap[cat.id] = { ...cat, subcategories: [] };
+        });
+
+        categories.forEach((cat) => {
+          if (cat.parent_id) {
+            categoryMap[cat.parent_id]?.subcategories?.push(
+              categoryMap[cat.id]
+            );
+          } else {
+            tree.push(categoryMap[cat.id]);
+          }
+        });
+
+        return tree;
+      };
+
+      setCategoriesData(buildCategoryTree(categories || []));
+      setQuestionsData(questions || []);
+      setFilteredQuestions(questions || []);
+    } catch (err) {
+      console.error('Unexpected error during category delete:', err);
+    }
   };
 
-  // Handle delete category
-  const handleDeleteCategory = (id: string) => {
-    // Find and remove the category
-    const removeCategory = (categories: Category[]): Category[] => {
-      return categories.filter((category) => {
-        if (category.id === id) {
-          return false;
-        }
+  // Handle adding a subcategory
+  const handleAddSubcategory = async (parentId: string, name: string) => {
+    if (!userId) return;
 
-        if (category.subcategories && category.subcategories.length > 0) {
-          category.subcategories = removeCategory(category.subcategories);
-        }
+    try {
+      const newCategory = {
+        id: uuidv4(), // Use UUID
+        name,
+        parent_id: parentId,
+        user_id: userId,
+      };
 
-        return true;
-      });
-    };
+      const { error } = await supabase.from('categories').insert([newCategory]);
 
-    setCategoriesData(removeCategory(categoriesData));
+      if (error) {
+        console.error('Error inserting subcategory:', error.message);
+        return;
+      }
 
-    // Remove questions in that category
-    // This is a simplified approach - in a real app, you'd need more robust handling
-    setQuestionsData((prevQuestions) => {
-      return prevQuestions.filter((question) => {
-        // Simple filtering - would need improvement in a real app
-        return true;
-      });
-    });
-  };
+      // Refresh categories
+      const { data: categories, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', userId);
 
-  // Handle add subcategory
-  const handleAddSubcategory = (parentId: string, name: string) => {
-    const newCategory = {
-      id: `cat-${Date.now()}`,
-      name,
-      subcategories: [],
-    };
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError.message);
+        return;
+      }
 
-    const updatedCategories = addSubcategory(
-      categoriesData,
-      parentId,
-      newCategory
-    );
+      const buildCategoryTree = (categories: any[]): Category[] => {
+        const categoryMap: { [key: string]: Category } = {};
+        const tree: Category[] = [];
 
-    setCategoriesData(updatedCategories);
+        categories.forEach((cat) => {
+          categoryMap[cat.id] = { ...cat, subcategories: [] };
+        });
+
+        categories.forEach((cat) => {
+          if (cat.parent_id) {
+            categoryMap[cat.parent_id]?.subcategories?.push(
+              categoryMap[cat.id]
+            );
+          } else {
+            tree.push(categoryMap[cat.id]);
+          }
+        });
+
+        return tree;
+      };
+
+      setCategoriesData(buildCategoryTree(categories));
+    } catch (err) {
+      console.error('Unexpected error during subcategory add:', err);
+    }
   };
 
   return (
@@ -236,7 +582,6 @@ export default function Dashboard() {
             </Button>
           </Box>
 
-          {/* Search Bar */}
           <TextField
             fullWidth
             placeholder="Search questions, answers, or categories..."
@@ -253,7 +598,6 @@ export default function Dashboard() {
             sx={{ mb: 4 }}
           />
 
-          {/* Questions Count */}
           <Box
             sx={{
               mb: 3,
@@ -268,7 +612,6 @@ export default function Dashboard() {
             </Typography>
           </Box>
 
-          {/* Questions and Answers */}
           <Box sx={{ mb: 4 }}>
             {filteredQuestions.length > 0 ? (
               filteredQuestions.map((question) => (
@@ -276,7 +619,7 @@ export default function Dashboard() {
                   key={question.id}
                   question={question.question}
                   answer={question.answer}
-                  categoryPath={question.categoryPath}
+                  categoryPath={question.category_path}
                 />
               ))
             ) : (
@@ -300,7 +643,6 @@ export default function Dashboard() {
           </Box>
         </Box>
 
-        {/* Floating Action Button for mobile */}
         <Fab
           color="primary"
           aria-label="add"
@@ -315,7 +657,6 @@ export default function Dashboard() {
           <AddIcon />
         </Fab>
 
-        {/* Create Modal */}
         <CreateModal
           open={isCreateModalOpen}
           onClose={handleCreateModalClose}
