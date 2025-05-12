@@ -8,12 +8,18 @@ import { darkTheme, lightTheme } from '@/app/styles/theme';
 interface ThemeContextType {
   mode: 'light' | 'dark';
   toggleTheme: () => void;
+  isLoginModalOpen: boolean;
+  openLoginModal: () => void;
+  closeLoginModal: () => void;
 }
 
 // Create context
 export const ThemeContext = createContext<ThemeContextType>({
   mode: 'dark',
   toggleTheme: () => {},
+  isLoginModalOpen: false,
+  openLoginModal: () => {},
+  closeLoginModal: () => {},
 });
 
 // Theme provider wrapper component
@@ -24,7 +30,7 @@ interface ThemeProviderWrapperProps {
 export default function ThemeProviderWrapper({
   children,
 }: ThemeProviderWrapperProps) {
-  // Initialize mode from localStorage before rendering
+  // Theme mode state
   const [mode, setMode] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme');
@@ -34,6 +40,9 @@ export default function ThemeProviderWrapper({
     }
     return 'dark';
   });
+
+  // Login modal state
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Track if component is mounted to prevent hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
@@ -53,6 +62,10 @@ export default function ThemeProviderWrapper({
     setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
   };
 
+  // Open/close login modal
+  const openLoginModal = () => setIsLoginModalOpen(true);
+  const closeLoginModal = () => setIsLoginModalOpen(false);
+
   // Select theme based on mode
   const theme = useMemo(
     () => (mode === 'light' ? lightTheme : darkTheme),
@@ -60,11 +73,20 @@ export default function ThemeProviderWrapper({
   );
 
   // Memoize context value
-  const contextValue = useMemo(() => ({ mode, toggleTheme }), [mode]);
+  const contextValue = useMemo(
+    () => ({
+      mode,
+      toggleTheme,
+      isLoginModalOpen,
+      openLoginModal,
+      closeLoginModal,
+    }),
+    [mode, isLoginModalOpen]
+  );
 
   // Prevent rendering until mounted to avoid hydration mismatch
   if (!isMounted) {
-    return null; // Or a minimal fallback UI
+    return null;
   }
 
   return (

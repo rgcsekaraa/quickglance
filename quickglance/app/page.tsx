@@ -12,14 +12,15 @@ import {
 import { Code, Dashboard, Speed } from '@mui/icons-material';
 import { useContext } from 'react';
 import ThemeToggleButton from '@/components/ThemeToggleButton';
+import LoginModal from '@/components/LoginModal';
 import { ThemeContext } from '@/components/ThemeProviderWrapper';
 
 export default function Home() {
   const router = useRouter();
-  const { mode } = useContext(ThemeContext);
+  const { mode, isLoginModalOpen, openLoginModal, closeLoginModal } =
+    useContext(ThemeContext);
   const isMobile = useMediaQuery((theme: any) => theme.breakpoints.down('sm'));
 
-  // Features for the landing page
   const features = [
     {
       icon: <Code sx={{ fontSize: 32, color: 'primary.main' }} />,
@@ -109,7 +110,7 @@ export default function Home() {
             variant="outlined"
             color="primary"
             size="small"
-            onClick={() => router.push('/auth')}
+            onClick={openLoginModal} // Open modal instead of redirecting
             sx={{
               borderRadius: '20px',
               textTransform: 'none',
@@ -182,7 +183,7 @@ export default function Home() {
               variant="contained"
               color="primary"
               size="large"
-              onClick={() => router.push('/auth')}
+              onClick={openLoginModal} // Open modal instead of redirecting
               sx={{
                 borderRadius: '30px',
                 textTransform: 'none',
@@ -362,6 +363,9 @@ export default function Home() {
           </Box>
         )}
       </Box>
+
+      {/* Login Modal */}
+      <LoginModal open={isLoginModalOpen} onClose={closeLoginModal} />
     </Box>
   );
 }

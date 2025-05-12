@@ -8,26 +8,36 @@ import { redirect } from 'next/navigation';
 const signinWith = (provider: Provider) => {
   return async () => {
     const supabase = await createClient();
-    const auth_callback_url = `${process.env.SITE_URL}/auth/callback`;
+
+    // Make sure to use the full URL for your callback
+    // In production, this should be your actual domain
+    const auth_callback_url =
+      process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000/auth/callback'
+        : `${process.env.SITE_URL}/auth/callback`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: auth_callback_url,
+        // Specify where to go after successful authentication
+        queryParams: {
+          next: '/dashboard',
+        },
       },
     });
 
     if (error) {
       console.error('Error signing in with OAuth:', error);
-      return null;
+      throw new Error(error.message);
     }
 
-    console.log('OAuth sign-in data:', data);
+    // Important: We need to redirect to the URL provided by Supabase
+    if (data?.url) {
+      redirect(data.url);
+    }
 
-    // redirect
-    redirect(data.url);
-
-    return data;
+    return null;
   };
 };
 
@@ -42,11 +52,9 @@ export const signOut = async () => {
 
   if (error) {
     console.error('Error signing out:', error);
-    return null;
+    throw new Error(error.message);
   }
 
   // redirect
   redirect('/');
-
-  return true;
 };
