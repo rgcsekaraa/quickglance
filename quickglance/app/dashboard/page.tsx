@@ -10,12 +10,13 @@ import {
   Paper,
   Button,
   Fab,
+  Skeleton, // Add Skeleton import
 } from '@mui/material';
 import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import QuestionAccordion from '@/components/dashboard/question-accordion';
 import CreateModal from '@/components/dashboard/create-modal';
-import { createClient } from '@/utils/supabase/client'; // Updated import
+import { createClient } from '@/utils/supabase/client';
 import { v4 as uuidv4 } from 'uuid';
 import type { Question } from '@/lib/types';
 import type { Category } from '@/lib/types';
@@ -27,6 +28,7 @@ export default function Dashboard() {
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
 
   const supabase = createClient();
 
@@ -34,6 +36,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setIsLoading(true); // Set loading to true before fetching
         // Get authenticated user
         const {
           data: { user },
@@ -101,6 +104,8 @@ export default function Dashboard() {
         setCategoriesData(buildCategoryTree(categories || []));
       } catch (err) {
         console.error('Unexpected error fetching data:', err);
+      } finally {
+        setIsLoading(false); // Set loading to false after fetching
       }
     };
 
@@ -229,7 +234,7 @@ export default function Dashboard() {
     setIsCreateModalOpen(false);
   };
 
-  // Handle creating questions or categories
+  // Handle creating questions르 or categories
   const handleCreateContent = async (newData: {
     type: 'category' | 'question';
     categoryPath?: string[];
@@ -251,7 +256,7 @@ export default function Dashboard() {
         newData.answer
       ) {
         const newQuestion: Question = {
-          id: uuidv4(), // Use UUID
+          id: uuidv4(),
           question: newData.question,
           answer: newData.answer,
           category_path: newData.categoryPath,
@@ -271,7 +276,7 @@ export default function Dashboard() {
         setFilteredQuestions([...filteredQuestions, newQuestion]);
       } else if (newData.type === 'category' && newData.categoryName) {
         const newCategory = {
-          id: uuidv4(), // Use UUID
+          id: uuidv4(),
           name: newData.categoryName,
           parent_id: newData.parentCategoryId || null,
           user_id: userId,
@@ -498,7 +503,7 @@ export default function Dashboard() {
 
     try {
       const newCategory = {
-        id: uuidv4(), // Use UUID
+        id: uuidv4(),
         name,
         parent_id: parentId,
         user_id: userId,
@@ -566,37 +571,49 @@ export default function Dashboard() {
               mb: 3,
             }}
           >
-            <Typography
-              variant="h1"
-              sx={{ fontSize: { xs: '2.5rem', md: '3.5rem' } }}
-            >
-              Dashboard
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleCreateModalOpen}
-              sx={{ height: 40 }}
-            >
-              Create
-            </Button>
+            {isLoading ? (
+              <Skeleton variant="text" width={200} height={60} />
+            ) : (
+              <Typography
+                variant="h1"
+                sx={{ fontSize: { xs: '1.5rem', md: '2.5rem' } }}
+              >
+                Dashboard
+              </Typography>
+            )}
+            {isLoading ? (
+              <Skeleton variant="rectangular" width={120} height={40} />
+            ) : (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleCreateModalOpen}
+                sx={{ height: 40 }}
+              >
+                Create
+              </Button>
+            )}
           </Box>
 
-          <TextField
-            fullWidth
-            placeholder="Search questions, answers, or categories..."
-            variant="outlined"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 4 }}
-          />
+          {isLoading ? (
+            <Skeleton variant="rectangular" height={56} sx={{ mb: 4 }} />
+          ) : (
+            <TextField
+              fullWidth
+              placeholder="Search questions, answers, or categories..."
+              variant="outlined"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 4 }}
+            />
+          )}
 
           <Box
             sx={{
@@ -606,14 +623,32 @@ export default function Dashboard() {
               alignItems: 'center',
             }}
           >
-            <Typography variant="h5">All Questions</Typography>
-            <Typography variant="body2" color="text.secondary">
-              {filteredQuestions.length} questions
-            </Typography>
+            {isLoading ? (
+              <Skeleton variant="text" width={150} height={40} />
+            ) : (
+              <Typography variant="h5">All Questions</Typography>
+            )}
+            {isLoading ? (
+              <Skeleton variant="text" width={100} height={20} />
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                {filteredQuestions.length} questions
+              </Typography>
+            )}
           </Box>
 
           <Box sx={{ mb: 4 }}>
-            {filteredQuestions.length > 0 ? (
+            {isLoading ? (
+              // Render skeleton placeholders for questions
+              Array.from(new Array(3)).map((_, index) => (
+                <Skeleton
+                  key={index}
+                  variant="rectangular"
+                  height={80}
+                  sx={{ mb: 2, borderRadius: 2 }}
+                />
+              ))
+            ) : filteredQuestions.length > 0 ? (
               filteredQuestions.map((question) => (
                 <QuestionAccordion
                   key={question.id}
@@ -643,19 +678,33 @@ export default function Dashboard() {
           </Box>
         </Box>
 
-        <Fab
-          color="primary"
-          aria-label="add"
-          sx={{
-            position: 'fixed',
-            bottom: 16,
-            right: 16,
-            display: { xs: 'flex', md: 'none' },
-          }}
-          onClick={handleCreateModalOpen}
-        >
-          <AddIcon />
-        </Fab>
+        {isLoading ? (
+          <Skeleton
+            variant="circular"
+            width={56}
+            height={56}
+            sx={{
+              position: 'fixed',
+              bottom: 16,
+              right: 16,
+              display: { xs: 'flex', md: 'none' },
+            }}
+          />
+        ) : (
+          <Fab
+            color="primary"
+            aria-label="add"
+            sx={{
+              position: 'fixed',
+              bottom: 16,
+              right: 16,
+              display: { xs: 'flex', md: 'none' },
+            }}
+            onClick={handleCreateModalOpen}
+          >
+            <AddIcon />
+          </Fab>
+        )}
 
         <CreateModal
           open={isCreateModalOpen}
