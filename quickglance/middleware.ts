@@ -1,3 +1,4 @@
+// middleware.ts
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
@@ -7,6 +8,17 @@ export async function middleware(request: NextRequest) {
       headers: request.headers,
     },
   });
+
+  // Prevent caching for dashboard routes
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    response.headers.set(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate'
+    );
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    response.headers.set('Surrogate-Control', 'no-store');
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +43,6 @@ export async function middleware(request: NextRequest) {
 
   // CASE 1: Protected routes - user must be logged in
   if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    // If not logged in, redirect to home
     if (!user) {
       const redirectUrl = new URL('/', request.url);
       return NextResponse.redirect(redirectUrl);
@@ -40,12 +51,9 @@ export async function middleware(request: NextRequest) {
 
   // CASE 2: Auth routes - logged in users should be redirected
   if (request.nextUrl.pathname.startsWith('/auth')) {
-    // Skip redirect for the callback route to avoid redirect loops
     if (request.nextUrl.pathname === '/auth/callback') {
       return response;
     }
-
-    // If logged in, redirect to dashboard
     if (user) {
       const redirectUrl = new URL('/dashboard', request.url);
       return NextResponse.redirect(redirectUrl);
@@ -60,18 +68,29 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // CASE 4: Validate session for dashboard routes
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error) {
+      console.error('Error getting session:', error);
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+
+    if (!session) {
+      const redirectUrl = new URL('/', request.url);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
