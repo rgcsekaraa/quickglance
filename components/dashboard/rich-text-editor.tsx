@@ -1,8 +1,6 @@
-"use client"
+'use client';
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState } from 'react';
 import {
   Box,
   Paper,
@@ -12,7 +10,7 @@ import {
   FormHelperText,
   ToggleButtonGroup,
   ToggleButton,
-} from "@mui/material"
+} from '@mui/material';
 import {
   FormatBold,
   FormatItalic,
@@ -24,60 +22,89 @@ import {
   FormatAlignLeft,
   FormatAlignCenter,
   FormatAlignRight,
-} from "@mui/icons-material"
+} from '@mui/icons-material';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface RichTextEditorProps {
-  value: string
-  onChange: (value: string) => void
-  error?: boolean
-  helperText?: string
+  value: string;
+  onChange: (value: string) => void;
+  error?: boolean;
+  helperText?: string;
 }
 
-export default function RichTextEditor({ value, onChange, error, helperText }: RichTextEditorProps) {
-  const [formats, setFormats] = useState<string[]>([])
+export default function RichTextEditor({
+  value,
+  onChange,
+  error,
+  helperText,
+}: RichTextEditorProps) {
+  const [formats, setFormats] = useState<string[]>([]);
 
-  const handleFormatChange = (event: React.MouseEvent<HTMLElement>, newFormats: string[]) => {
-    setFormats(newFormats)
+  const handleFormatChange = (
+    event: React.MouseEvent<HTMLElement>,
+    newFormats: string[]
+  ) => {
+    setFormats(newFormats);
+    // Apply formatting via Quill's API
+    const quill = quillRef.current?.getEditor();
+    if (quill) {
+      newFormats.forEach((format) => {
+        if (['bold', 'italic', 'underline'].includes(format)) {
+          quill.format(format, !quill.getFormat()[format]);
+        } else if (format === 'bullet') {
+          quill.format('list', 'bullet');
+        } else if (format === 'numbered') {
+          quill.format('list', 'ordered');
+        } else if (['left', 'center', 'right'].includes(format)) {
+          quill.format('align', format === 'left' ? false : format);
+        }
+      });
+    }
+  };
 
-    // This is a simplified implementation
-    // In a real app, you would apply the formatting to the selected text
-    // For demo purposes, we're just showing the toolbar UI
-  }
+  const quillRef = React.useRef<ReactQuill>(null);
 
-  // In a real implementation, you would use a proper rich text editor library
-  // like Quill, TinyMCE, or Draft.js. This is a simplified version for demo purposes.
   return (
     <Box sx={{ mb: 3 }}>
       <Paper
         variant="outlined"
         sx={{
           minHeight: 200,
-          border: error ? "1px solid red" : undefined,
+          border: error ? '1px solid red' : undefined,
         }}
       >
         <Toolbar
           variant="dense"
           sx={{
-            borderBottom: "1px solid",
-            borderColor: "divider",
-            flexWrap: "wrap",
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            flexWrap: 'wrap',
           }}
         >
-          <ToggleButtonGroup value={formats} onChange={handleFormatChange} aria-label="text formatting">
+          <ToggleButtonGroup
+            value={formats}
+            onChange={handleFormatChange}
+            aria-label="text formatting"
+          >
             <ToggleButton value="bold" aria-label="bold">
               <FormatBold fontSize="small" />
             </ToggleButton>
             <ToggleButton value="italic" aria-label="italic">
               <FormatItalic fontSize="small" />
             </ToggleButton>
-            <ToggleButton value="underlined" aria-label="underlined">
+            <ToggleButton value="underline" aria-label="underlined">
               <FormatUnderlined fontSize="small" />
             </ToggleButton>
           </ToggleButtonGroup>
 
           <Divider flexItem orientation="vertical" sx={{ mx: 1 }} />
 
-          <ToggleButtonGroup value={formats} onChange={handleFormatChange} aria-label="list formatting">
+          <ToggleButtonGroup
+            value={formats}
+            onChange={handleFormatChange}
+            aria-label="list formatting"
+          >
             <ToggleButton value="bullet" aria-label="bullet list">
               <FormatListBulleted fontSize="small" />
             </ToggleButton>
@@ -88,7 +115,11 @@ export default function RichTextEditor({ value, onChange, error, helperText }: R
 
           <Divider flexItem orientation="vertical" sx={{ mx: 1 }} />
 
-          <ToggleButtonGroup value={formats} onChange={handleFormatChange} aria-label="text alignment">
+          <ToggleButtonGroup
+            value={formats}
+            onChange={handleFormatChange}
+            aria-label="text alignment"
+          >
             <ToggleButton value="left" aria-label="align left">
               <FormatAlignLeft fontSize="small" />
             </ToggleButton>
@@ -102,34 +133,40 @@ export default function RichTextEditor({ value, onChange, error, helperText }: R
 
           <Divider flexItem orientation="vertical" sx={{ mx: 1 }} />
 
-          <IconButton size="small">
+          <IconButton
+            size="small"
+            onClick={() => {
+              const quill = quillRef.current?.getEditor();
+              quill?.format('code-block', !quill.getFormat()['code-block']);
+            }}
+          >
             <Code fontSize="small" />
           </IconButton>
-          <IconButton size="small">
+          <IconButton
+            size="small"
+            onClick={() => {
+              const quill = quillRef.current?.getEditor();
+              quill?.format('blockquote', !quill.getFormat()['blockquote']);
+            }}
+          >
             <FormatQuote fontSize="small" />
           </IconButton>
         </Toolbar>
 
-        <Box
-          component="textarea"
+        <ReactQuill
+          ref={quillRef}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          sx={{
-            width: "100%",
-            height: "calc(100% - 48px)",
-            minHeight: "150px",
-            p: 2,
-            border: "none",
-            outline: "none",
-            resize: "vertical",
-            fontFamily: "inherit",
-            fontSize: "inherit",
-            backgroundColor: "transparent",
+          onChange={onChange}
+          style={{ height: '150px', border: 'none' }}
+          modules={{
+            toolbar: false, // Disable Quill's default toolbar
           }}
           placeholder="Enter your answer here..."
         />
       </Paper>
-      {error && helperText && <FormHelperText error>{helperText}</FormHelperText>}
+      {error && helperText && (
+        <FormHelperText error>{helperText}</FormHelperText>
+      )}
     </Box>
-  )
+  );
 }
