@@ -18,6 +18,7 @@ import { signInWithGoogle } from '@/utils/supabase/actions';
 import CloseIcon from '@mui/icons-material/Close';
 // import GoogleIcon from '@mui/icons-material/Google';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import { RemoveRedEye } from '@mui/icons-material';
 
 interface LoginModalProps {
   open: boolean;
@@ -116,7 +117,7 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
           pb: 2,
         }}
       >
-        <Paper
+        {/* <Paper
           elevation={4}
           sx={{
             width: 70,
@@ -132,8 +133,8 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
             mb: 2,
           }}
         >
-          <LockOutlinedIcon sx={{ fontSize: 36, color: 'white' }} />
-        </Paper>
+          <RemoveRedEye sx={{ fontSize: 36, color: 'white' }} />
+        </Paper> */}
 
         <DialogTitle
           sx={{
@@ -151,7 +152,7 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
             fontSize: '1.75rem',
           }}
         >
-          Welcome Back
+          Welcome Mate!
         </DialogTitle>
       </Box>
 
@@ -175,8 +176,7 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
             maxWidth: '85%',
           }}
         >
-          Sign in to access your personalized job preparation tools and
-          dashboard.
+          Sign in to access your dashboard.
         </Typography>
 
         <Box
@@ -233,22 +233,12 @@ export default function LoginModal({ open, onClose }: LoginModalProps) {
               fontWeight: 600,
               width: '100%',
               maxWidth: '280px',
-              background:
-                mode === 'light'
-                  ? 'linear-gradient(to right, #4285F4, #34A853, #FBBC05, #EA4335)'
-                  : 'linear-gradient(to right, #5c9ce6, #4caf50, #ffca28, #e57373)',
-              backgroundSize: '300% 100%',
-              transition: 'all 0.4s ease',
-              boxShadow:
-                mode === 'light'
-                  ? '0 4px 12px rgba(66, 133, 244, 0.4)'
-                  : '0 4px 12px rgba(92, 156, 230, 0.4)',
+              background: mode === 'light' ? '#f5f5f5' : '#333333',
+              color: mode === 'light' ? '#333333' : '#ffffff',
+              border: mode === 'light' ? '1px solid #ccc' : '1px solid #555555',
+              transition: 'all 0.3s ease',
               '&:hover': {
-                backgroundPosition: '100% 0',
-                boxShadow:
-                  mode === 'light'
-                    ? '0 8px 20px rgba(66, 133, 244, 0.5)'
-                    : '0 8px 20px rgba(92, 156, 230, 0.5)',
+                background: mode === 'light' ? '#f5f5f5' : '#333333',
               },
               '&:active': {
                 transform: 'scale(0.98)',
