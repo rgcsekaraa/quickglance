@@ -1,8 +1,6 @@
 'use client';
 
-import type React from 'react';
-
-import { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -40,20 +38,77 @@ export default function RichTextEditor({
   helperText,
 }: RichTextEditorProps) {
   const [formats, setFormats] = useState<string[]>([]);
+  const editorRef = useRef<HTMLDivElement>(null);
 
+  // Handle toolbar button clicks to apply formatting
   const handleFormatChange = (
     event: React.MouseEvent<HTMLElement>,
     newFormats: string[]
   ) => {
     setFormats(newFormats);
-
-    // This is a simplified implementation
-    // In a real app, you would apply the formatting to the selected text
-    // For demo purposes, we're just showing the toolbar UI
+    if (editorRef.current) {
+      editorRef.current.focus();
+      // Apply each format based on whether it's in newFormats
+      if (newFormats.includes('bold')) {
+        document.execCommand('bold', false, undefined);
+      }
+      if (newFormats.includes('italic')) {
+        document.execCommand('italic', false, undefined);
+      }
+      if (newFormats.includes('underlined')) {
+        document.execCommand('underline', false, undefined);
+      }
+      if (newFormats.includes('bullet')) {
+        document.execCommand('insertUnorderedList', false, undefined);
+      }
+      if (newFormats.includes('numbered')) {
+        document.execCommand('insertOrderedList', false, undefined);
+      }
+      if (newFormats.includes('left')) {
+        document.execCommand('justifyLeft', false, undefined);
+      }
+      if (newFormats.includes('center')) {
+        document.execCommand('justifyCenter', false, undefined);
+      }
+      if (newFormats.includes('right')) {
+        document.execCommand('justifyRight', false, undefined);
+      }
+    }
+    // Trigger onChange to update the parent component
+    handleContentChange();
   };
 
-  // In a real implementation, you would use a proper rich text editor library
-  // like Quill, TinyMCE, or Draft.js. This is a simplified version for demo purposes.
+  // Handle code and quote buttons
+  const applyCodeFormat = () => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      document.execCommand('formatBlock', false, 'pre');
+      handleContentChange();
+    }
+  };
+
+  const applyQuoteFormat = () => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      document.execCommand('formatBlock', false, 'blockquote');
+      handleContentChange();
+    }
+  };
+
+  // Update parent component with the editor's HTML content
+  const handleContentChange = () => {
+    if (editorRef.current) {
+      onChange(editorRef.current.innerHTML);
+    }
+  };
+
+  // Initialize editor content when value prop changes
+  React.useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value;
+    }
+  }, [value]);
+
   return (
     <Box sx={{ mb: 3 }}>
       <Paper
@@ -122,21 +177,20 @@ export default function RichTextEditor({
 
           <Divider flexItem orientation="vertical" sx={{ mx: 1 }} />
 
-          <IconButton size="small">
+          <IconButton size="small" onClick={applyCodeFormat}>
             <Code fontSize="small" />
           </IconButton>
-          <IconButton size="small">
+          <IconButton size="small" onClick={applyQuoteFormat}>
             <FormatQuote fontSize="small" />
           </IconButton>
         </Toolbar>
 
         <Box
-          component="textarea"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          ref={editorRef}
+          contentEditable
+          onInput={handleContentChange}
           sx={{
             width: '100%',
-            height: 'calc(100% - 48px)',
             minHeight: '150px',
             p: 2,
             border: 'none',
@@ -145,8 +199,12 @@ export default function RichTextEditor({
             fontFamily: 'inherit',
             fontSize: 'inherit',
             backgroundColor: 'transparent',
+            '&:empty:before': {
+              content: '"Enter your answer here..."',
+              color: 'grey.500',
+            },
           }}
-          placeholder="Enter your answer here..."
+          dangerouslySetInnerHTML={{ __html: value }}
         />
       </Paper>
       {error && helperText && (
