@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import type React from 'react';
+
+import { useState } from 'react';
 import {
   Box,
   Paper,
@@ -23,8 +25,6 @@ import {
   FormatAlignCenter,
   FormatAlignRight,
 } from '@mui/icons-material';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 
 interface RichTextEditorProps {
   value: string;
@@ -46,25 +46,14 @@ export default function RichTextEditor({
     newFormats: string[]
   ) => {
     setFormats(newFormats);
-    // Apply formatting via Quill's API
-    const quill = quillRef.current?.getEditor();
-    if (quill) {
-      newFormats.forEach((format) => {
-        if (['bold', 'italic', 'underline'].includes(format)) {
-          quill.format(format, !quill.getFormat()[format]);
-        } else if (format === 'bullet') {
-          quill.format('list', 'bullet');
-        } else if (format === 'numbered') {
-          quill.format('list', 'ordered');
-        } else if (['left', 'center', 'right'].includes(format)) {
-          quill.format('align', format === 'left' ? false : format);
-        }
-      });
-    }
+
+    // This is a simplified implementation
+    // In a real app, you would apply the formatting to the selected text
+    // For demo purposes, we're just showing the toolbar UI
   };
 
-  const quillRef = React.useRef<ReactQuill>(null);
-
+  // In a real implementation, you would use a proper rich text editor library
+  // like Quill, TinyMCE, or Draft.js. This is a simplified version for demo purposes.
   return (
     <Box sx={{ mb: 3 }}>
       <Paper
@@ -93,7 +82,7 @@ export default function RichTextEditor({
             <ToggleButton value="italic" aria-label="italic">
               <FormatItalic fontSize="small" />
             </ToggleButton>
-            <ToggleButton value="underline" aria-label="underlined">
+            <ToggleButton value="underlined" aria-label="underlined">
               <FormatUnderlined fontSize="small" />
             </ToggleButton>
           </ToggleButtonGroup>
@@ -133,33 +122,29 @@ export default function RichTextEditor({
 
           <Divider flexItem orientation="vertical" sx={{ mx: 1 }} />
 
-          <IconButton
-            size="small"
-            onClick={() => {
-              const quill = quillRef.current?.getEditor();
-              quill?.format('code-block', !quill.getFormat()['code-block']);
-            }}
-          >
+          <IconButton size="small">
             <Code fontSize="small" />
           </IconButton>
-          <IconButton
-            size="small"
-            onClick={() => {
-              const quill = quillRef.current?.getEditor();
-              quill?.format('blockquote', !quill.getFormat()['blockquote']);
-            }}
-          >
+          <IconButton size="small">
             <FormatQuote fontSize="small" />
           </IconButton>
         </Toolbar>
 
-        <ReactQuill
-          ref={quillRef}
+        <Box
+          component="textarea"
           value={value}
-          onChange={onChange}
-          style={{ height: '150px', border: 'none' }}
-          modules={{
-            toolbar: false, // Disable Quill's default toolbar
+          onChange={(e) => onChange(e.target.value)}
+          sx={{
+            width: '100%',
+            height: 'calc(100% - 48px)',
+            minHeight: '150px',
+            p: 2,
+            border: 'none',
+            outline: 'none',
+            resize: 'vertical',
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            backgroundColor: 'transparent',
           }}
           placeholder="Enter your answer here..."
         />
