@@ -91,7 +91,12 @@ export default function Home() {
           transition: 'background-color 0.3s, border-color 0.3s',
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <img
+            src="logo.png"
+            alt="QuickGlance logo"
+            style={{ height: '40px' }}
+          />
           <Typography
             variant="h5"
             sx={{

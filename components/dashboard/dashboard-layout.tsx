@@ -159,9 +159,23 @@ export default function DashboardLayout({
           py: 2,
         }}
       >
-        <Typography variant="h6" component="div" sx={{ fontWeight: 700 }}>
-          QuickGlance
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <img
+            src="logo.png"
+            alt="QuickGlance logo"
+            style={{ height: '40px' }}
+          />
+          <Typography
+            variant="h6"
+            sx={{
+              fontWeight: 800,
+              color: 'primary.main',
+              letterSpacing: '-0.5px',
+            }}
+          >
+            QuickGlance
+          </Typography>
+        </Box>
       </Toolbar>
       <Divider />
       <List sx={{ flexGrow: 1, px: 2 }}>
